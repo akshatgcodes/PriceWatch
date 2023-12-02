@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# Secrets / local config
+.env
+
+# Runtime logs
+pricewatch.log
+
+# Generated data (price history logs, watch state) and generated charts
+data/*.csv
+data/watches.json
+reports/*.png
+
+# Keep the folder structure in git even though generated content is ignored
+!reports/.gitkeep
+!data/.gitkeep
