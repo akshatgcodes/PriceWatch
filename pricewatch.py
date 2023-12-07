@@ -2,9 +2,10 @@
 """
 PriceWatch
 ==========
-A CLI background daemon that watches stock/crypto prices and fires desktop
-notifications when a price crosses a user-defined threshold. Logs every
-price check to a local CSV history file.
+A CLI background daemon that watches stock/crypto prices, fires desktop
+notifications when a price crosses a user-defined threshold, logs every
+price check to a local CSV history file, and auto-generates weekly
+matplotlib price charts into /reports.
 
 Usage examples
 --------------
@@ -12,6 +13,7 @@ Usage examples
     python pricewatch.py --asset INFY --target 1800 --direction below
     python pricewatch.py --run                     # start the daemon
     python pricewatch.py --run --mock               # start with synthetic prices (offline)
+    python pricewatch.py --report                  # generate this week's chart(s)
     python pricewatch.py --list                     # show active watches
 
 See README.md for full details, including the live-vs-mock data path and
@@ -60,14 +62,21 @@ try:
 except ImportError:  # pragma: no cover
     notification = None
 
+import matplotlib
+
+matplotlib.use("Agg")  # headless-safe backend, must be set before pyplot import
+import matplotlib.pyplot as plt
+
 # --------------------------------------------------------------------------
 # Paths & config
 # --------------------------------------------------------------------------
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data"
+REPORTS_DIR = BASE_DIR / "reports"
 WATCHES_FILE = DATA_DIR / "watches.json"
 
 DATA_DIR.mkdir(exist_ok=True)
+REPORTS_DIR.mkdir(exist_ok=True)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -312,6 +321,89 @@ def run_check(use_mock: bool = False) -> None:
 
 
 # --------------------------------------------------------------------------
+# Weekly chart report (the X factor)
+# --------------------------------------------------------------------------
+def generate_report(asset: str | None = None) -> list[Path]:
+    """Build a matplotlib PNG chart per tracked asset from its CSV history,
+    saved into /reports as week_<isoweek>_<isoyear>_<asset>.png.
+
+    Prefers points from the current ISO week (Mon-Sun); if the log doesn't
+    have anything that recent yet, falls back to whatever history exists so
+    a report can still be produced on demand.
+    """
+    watches = load_watches()
+    if asset:
+        assets = [asset.upper()]
+    else:
+        known = {w["asset"] for w in watches}
+        known |= {p.stem.replace("history_", "") for p in DATA_DIR.glob("history_*.csv")}
+        assets = sorted(known)
+
+    if not assets:
+        logger.warning("No assets to report on (no watches and no history logs).")
+        return []
+
+    today = datetime.date.today()
+    iso_year, iso_week, _ = today.isocalendar()
+    monday = today - datetime.timedelta(days=today.weekday())
+    week_start = datetime.datetime.combine(monday, datetime.time.min)
+
+    generated: list[Path] = []
+    for a in assets:
+        path = history_path(a)
+        if not path.exists():
+            logger.warning("No history log for %s yet, skipping report.", a)
+            continue
+
+        timestamps: list[datetime.datetime] = []
+        prices: list[float] = []
+        with open(path) as f:
+            for row in csv.DictReader(f):
+                try:
+                    timestamps.append(datetime.datetime.fromisoformat(row["timestamp"]))
+                    prices.append(float(row["price"]))
+                except (KeyError, ValueError):
+                    continue
+
+        if not timestamps:
+            logger.warning("History log for %s has no valid rows, skipping report.", a)
+            continue
+
+        points = [(t, p) for t, p in zip(timestamps, prices) if t >= week_start]
+        if not points:
+            points = list(zip(timestamps, prices))
+        points.sort(key=lambda tp: tp[0])
+        xs, ys = zip(*points)
+
+        fig, ax = plt.subplots(figsize=(10, 5))
+        ax.plot(xs, ys, marker="o", markersize=3, linewidth=1.5, color="#2563eb")
+        ax.set_title(f"{a} Price — Week {iso_week}, {iso_year}")
+        ax.set_xlabel("Time")
+        ax.set_ylabel(f"Price ({CURRENCY.upper()})")
+        ax.grid(True, alpha=0.3)
+        if min(xs) == max(xs):
+            # All points share one timestamp (e.g. a burst of test data, or
+            # only a single check logged so far); matplotlib's date locator
+            # picks a nonsensical multi-year range in this degenerate case,
+            # so pin a small explicit window around the single point instead.
+            pad = datetime.timedelta(minutes=5)
+            ax.set_xlim(xs[0] - pad, xs[0] + pad)
+        fig.autofmt_xdate()
+        fig.tight_layout()
+
+        filename = f"week_{iso_week}_{iso_year}_{a}.png"
+        out_path = REPORTS_DIR / filename
+        fig.savefig(out_path, dpi=150)
+        plt.close(fig)
+
+        logger.info("Weekly report saved to %s", out_path)
+        print(f"\U0001f4ca Weekly report saved to {out_path.relative_to(BASE_DIR)}")
+        generated.append(out_path)
+
+    return generated
+
+
+# --------------------------------------------------------------------------
 # Daemon loop
 # --------------------------------------------------------------------------
 def start_daemon(interval_seconds: int, use_mock: bool = False) -> None:
@@ -321,6 +413,7 @@ def start_daemon(interval_seconds: int, use_mock: bool = False) -> None:
 
     logger.info("Starting PriceWatch daemon (interval=%ss, mock=%s)", interval_seconds, use_mock)
     schedule.every(interval_seconds).seconds.do(run_check, use_mock=use_mock)
+    schedule.every().sunday.at("23:00").do(generate_report)
 
     run_check(use_mock=use_mock)  # run once immediately so the user sees output right away
 
@@ -350,6 +443,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Polling interval in seconds for --run (default: 300, or $PRICEWATCH_INTERVAL)",
     )
     parser.add_argument("--run", action="store_true", help="Start the background polling daemon")
+    parser.add_argument("--report", action="store_true", help="Generate this week's price chart(s) from logged history")
     parser.add_argument("--mock", action="store_true", help="Use synthetic mock prices instead of live APIs (offline testing)")
     parser.add_argument("--list", action="store_true", help="List all registered watches and exit")
     return parser
@@ -377,6 +471,10 @@ def main() -> None:
         print(f"Registered watch: alert when {args.asset.upper()} goes {args.direction} {sym}{args.target:,.2f}")
 
     did_something = bool(args.asset)
+
+    if args.report:
+        generate_report(asset=args.asset if (args.asset and not args.run) else None)
+        did_something = True
 
     if args.run:
         start_daemon(args.interval, use_mock=args.mock)
