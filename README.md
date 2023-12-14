@@ -204,3 +204,7 @@ they're per-user runtime output, not source; `data/.gitkeep` and
   won't re-alert until the price moves back across the threshold and
   crosses it again, to avoid spamming a notification on every single poll
   while a price sits past its target.
+
+## Notes
+
+Built as a focused, single-purpose tool - a price-watching CLI daemon, nothing more, nothing less.
