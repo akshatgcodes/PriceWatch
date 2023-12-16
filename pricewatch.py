@@ -486,3 +486,5 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+# Built incrementally - see git history for the development progression.
