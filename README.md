@@ -208,3 +208,7 @@ they're per-user runtime output, not source; `data/.gitkeep` and
 ## Notes
 
 Built as a focused, single-purpose tool - a price-watching CLI daemon, nothing more, nothing less.
+
+## Troubleshooting
+
+If something doesn't run as expected, double-check you're using the dependency versions noted above and running the exact commands from the "Run it" section.
