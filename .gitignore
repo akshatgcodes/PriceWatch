@@ -19,3 +19,6 @@ reports/*.png
 # Keep the folder structure in git even though generated content is ignored
 !reports/.gitkeep
 !data/.gitkeep
+
+# OS cruft
+.DS_Store
