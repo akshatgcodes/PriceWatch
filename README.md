@@ -218,3 +218,7 @@ If something doesn't run as expected, double-check you're using the dependency v
 - More test coverage
 - Better error messages for edge cases
 - A cleaner CLI/UI polish pass
+
+## Acknowledgements
+
+Thanks to the open-source libraries this project leans on - see the dependency list above for the full set.
