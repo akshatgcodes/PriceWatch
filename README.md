@@ -222,3 +222,7 @@ If something doesn't run as expected, double-check you're using the dependency v
 ## Acknowledgements
 
 Thanks to the open-source libraries this project leans on - see the dependency list above for the full set.
+
+## License
+
+GPLv3 - see [LICENSE](LICENSE) for details.
