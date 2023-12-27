@@ -226,3 +226,7 @@ Thanks to the open-source libraries this project leans on - see the dependency l
 ## License
 
 GPLv3 - see [LICENSE](LICENSE) for details.
+
+## Testing
+
+Manually tested via the sample commands above; no automated test suite yet.
