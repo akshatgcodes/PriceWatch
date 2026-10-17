@@ -47,6 +47,10 @@ updates:
     schedule: { interval: "weekly", day: "monday", time: "06:00", timezone: "Asia/Kolkata" }
     open-pull-requests-limit: 10
     commit-message: { prefix: "👆" }
+    ignore:
+      # typescript-eslint (via eslint-config-next) doesn't support TypeScript 7 yet.
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
     groups:
       minor-and-patch:
         update-types: ["minor", "patch"]
