@@ -4,6 +4,15 @@ All notable changes to **PriceWatch** are documented here.
 
 ---
 
+## [1.0.1] — 2026-10-18
+
+### 🐛 Fixed
+- Watches now re-arm when the price moves back across the target, so the next crossing alerts again
+- A failed live price fetch skips that asset for the tick instead of logging a mock price and possibly alerting on it
+- Alerts and charts show each asset's own currency (stocks are no longer labelled with the crypto currency)
+
+---
+
 ## [1.0.0] — 2026-10-18
 
 ### ✨ Added
@@ -17,6 +26,7 @@ All notable changes to **PriceWatch** are documented here.
 
 ---
 
+[1.0.1]: https://github.com/akshatgcodes/PriceWatch/releases/tag/v1.0.1
 [1.0.0]: https://github.com/akshatgcodes/PriceWatch/releases/tag/v1.0.0
 
 ---
