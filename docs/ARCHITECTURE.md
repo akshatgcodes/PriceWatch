@@ -33,7 +33,8 @@ landing/           Next.js project page
 |---|---|
 | `fetch_price_live(asset)` | CoinGecko for known crypto ids, otherwise yfinance |
 | `fetch_price_mock(asset)` | ±1.5% random walk from a base price per ticker |
-| `get_price(asset, use_mock)` | Mock if asked. Otherwise live, falling back to mock on any error |
+| `get_price(asset, use_mock)` | Mock if asked, otherwise live. A live failure raises |
+| `currency_code / currency_symbol(asset)` | Configured currency for crypto, the ticker's own (from yfinance metadata) for stocks |
 | `add_watch / load_watches / save_watches` | Watch list in `data/watches.json` |
 | `log_price(asset, price)` | Appends `timestamp, price` to the asset's CSV |
 | `check_watch(watch, price)` | Crossing check + `triggered` flag |
@@ -54,11 +55,11 @@ landing/           Next.js project page
         run_check
           load_watches
           for each distinct asset:
-              get_price  (live → CoinGecko | yfinance; on error → mock)
+              get_price  (live → CoinGecko | yfinance; on error → skip asset)
               log_price  --> data/history_<ASSET>.csv
               for each watch on that asset:
                   check_watch --> crossed & not triggered? notify + triggered=True
-          save_watches if an alert fired
+          save_watches if any watch's triggered flag changed (fired or re-armed)
     schedule Sunday 23:00:
         generate_report --> reports/week_<W>_<Y>_<ASSET>.png
 
@@ -95,8 +96,8 @@ landing/           Next.js project page
 
 | Failure | Behaviour |
 |---|---|
-| CoinGecko / yfinance error | Warning logged, **mock price used instead** (see the risk in [PRD.md](PRD.md#9-risks--open-questions)) |
-| Unexpected CoinGecko JSON | `PriceFetchError`, then the mock fallback |
+| CoinGecko / yfinance error | Error logged; that asset is skipped for the tick, nothing logged or alerted |
+| Unexpected CoinGecko JSON | `PriceFetchError`; asset skipped for the tick |
 | `plyer` unavailable or failing | Warning logged; the console alert stands |
 | Corrupt `watches.json` | Error logged; starts with an empty list |
 | Partial watch flags | `--asset`, `--target` and `--direction` must come together, or argparse errors |

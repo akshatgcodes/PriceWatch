@@ -71,13 +71,16 @@ python pricewatch.py --run
 History is a by-product of polling you're already doing. Logging it costs nothing and turns an alert tool into a price tracker with charts.
 
 **Why alert on the crossing, not every tick above the target?**
-A watch fires once when it crosses, and is meant to re-arm when the price moves back. Without that, you'd get a notification every poll.
+A watch fires once when it crosses and re-arms when the price moves back. Without that, you'd get a notification every poll.
 
 **Why always print the alert to the console?**
 `plyer` fails on headless machines and in CI. The console line means an alert is never silently dropped.
 
+**Why no fallback to mock prices?**
+A failed live fetch skips that asset for the tick. Synthetic prices never reach the real history or trigger an alert; they only appear with `--mock`.
+
 **What would you do differently in v2?**
-Stop falling back to mock prices when a live fetch fails. Today a network error logs a warning and continues with synthetic data, which can land in the history file.
+Add `--remove` and `--edit` for watches, so the watch file never needs hand-editing.
 
 ---
 

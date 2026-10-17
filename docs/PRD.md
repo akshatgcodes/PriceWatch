@@ -66,12 +66,15 @@ Checking a price over and over to see whether it has hit your number is a waste 
 ### 6.3 Prices
 
 - Crypto tickers in `COINGECKO_IDS` (BTC, ETH, DOGE, SOL, ADA, XRP, LTC, BNB, MATIC, USDT) use CoinGecko `simple/price` in `PRICEWATCH_CURRENCY` (default `inr`).
-- Any other ticker uses `yfinance`: the last close for today, in the ticker's own currency.
-- `--mock` uses a random walk around a base price per ticker.
+- Any other ticker uses `yfinance`: the last close for today, in the ticker's own currency (read from yfinance's metadata).
+- `--mock` uses a random walk around a base price per ticker. Mock prices are never used unless `--mock` is passed.
+- A failed live fetch skips that asset for the tick and logs an error.
 
 ### 6.4 Alerts
 
 - A watch fires when `price >= target` (above) or `price <= target` (below) and it isn't already triggered. It's then marked triggered.
+- When the price moves back across the target, the watch re-arms so a later crossing alerts again. Every change to `triggered` is saved.
+- Alerts show each asset's own currency: the configured one for crypto, the ticker's for stocks.
 - The alert is printed to the console and sent through `plyer`. A notification failure is logged and never crashes the daemon.
 
 ### 6.5 Reports
@@ -101,19 +104,17 @@ Checking a price over and over to see whether it has hit your number is a waste 
 
 ## 9. Risks & Open Questions
 
-- **Silent mock fallback** — if a live fetch raises, `get_price()` logs a warning and returns a mock price. That synthetic price is logged to the real history CSV and can trigger alerts.
-- **Re-arming doesn't persist** — `check_watch()` resets `triggered` when the price moves back, but the watch file is only saved when an alert fires. Watches are reloaded each tick, so the reset is lost and a watch fires at most once.
-- **Mixed currencies** — stock prices come in the ticker's own currency, but alert messages use the `PRICEWATCH_CURRENCY` symbol.
+- **API outages** — a provider outage means no price (and no alert) for that asset until it recovers. It's logged as an error each tick.
+- **Watch registration currency** — before a stock's first fetch, its currency is unknown, so the registration message shows the target without a symbol.
 - **Notifications on headless systems** — `plyer` needs a desktop backend. The console message is the fallback.
 
 ---
 
 ## 10. v2 Candidates
 
-- Fail loudly instead of falling back to mock data, and never log mock prices to the real history.
-- Save the watch file whenever `triggered` changes, so watches re-arm.
-- Show each asset's real currency in alerts.
 - `--remove` and `--edit` for watches.
+- Retry a failed live fetch once before skipping the tick.
+- Email or push alerts as an opt-in channel.
 
 ---
 

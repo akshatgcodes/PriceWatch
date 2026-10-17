@@ -85,9 +85,8 @@ There's no automated test suite yet. CI checks that every Python file compiles a
 
 ## Known limitations
 
-- If a live fetch fails, PriceWatch silently switches to mock prices for that tick, and those prices are logged to your history.
-- A watch only alerts once, because the re-arm after the price moves back isn't saved.
-- Stock prices are in the ticker's own currency, but alerts show the `PRICEWATCH_CURRENCY` symbol.
+- If a live fetch fails, that asset is skipped for the tick (logged as an error), so there's a gap in its history.
+- A stock's currency is known only after its first fetch, so the registration message shows the target without a symbol.
 
 ---
 
