@@ -2,5 +2,5 @@ yfinance>=1.7.0
 requests>=2.34.2
 schedule>=1.2.2
 plyer>=2.1
-matplotlib>=3.8
+matplotlib>=3.11.2
 python-dotenv>=1.2.4
