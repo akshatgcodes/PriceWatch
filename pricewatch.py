@@ -110,8 +110,25 @@ CURRENCY = os.environ.get("PRICEWATCH_CURRENCY", "inr").lower()
 CURRENCY_SYMBOLS = {"inr": "₹", "usd": "$", "eur": "€", "gbp": "£"}
 
 
-def currency_symbol() -> str:
-    return CURRENCY_SYMBOLS.get(CURRENCY, CURRENCY.upper() + " ")
+# Currency code per stock/index ticker, learned from yfinance on each live
+# fetch (stocks are quoted in their own currency, not PRICEWATCH_CURRENCY).
+_asset_currency: dict[str, str] = {}
+
+
+def currency_code(asset: str | None = None) -> str | None:
+    """Currency an asset is priced in: the configured one for crypto (and
+    when no asset is given), the ticker's own for stocks, or None if a
+    stock hasn't been fetched yet."""
+    if asset is None or is_crypto(asset):
+        return CURRENCY
+    return _asset_currency.get(asset.upper())
+
+
+def currency_symbol(asset: str | None = None) -> str:
+    code = currency_code(asset)
+    if not code:
+        return ""
+    return CURRENCY_SYMBOLS.get(code.lower(), code.upper() + " ")
 
 
 # --------------------------------------------------------------------------
@@ -154,6 +171,9 @@ def fetch_price_live(asset: str) -> float:
         hist = ticker.history(period="1d")
         if hist.empty:
             raise PriceFetchError(f"No data returned by yfinance for {asset_u}")
+        currency = (getattr(ticker, "history_metadata", None) or {}).get("currency")
+        if currency:
+            _asset_currency[asset_u] = currency
         return float(hist["Close"].iloc[-1])
 
 
@@ -179,17 +199,13 @@ def fetch_price_mock(asset: str) -> float:
 def get_price(asset: str, use_mock: bool = False) -> float:
     """Single entry point for price lookups, used by the polling loop.
 
-    When `use_mock` is True, or when the live lookup raises, falls back to
-    `fetch_price_mock` so the rest of the pipeline (logging, alerting,
-    charting) can always be exercised even without network access.
+    Mock prices are only used when `use_mock` is True. A failed live lookup
+    raises, so the caller skips that asset for this tick instead of logging
+    synthetic prices into the real history or alerting on them.
     """
     if use_mock:
         return fetch_price_mock(asset)
-    try:
-        return fetch_price_live(asset)
-    except Exception as exc:  # noqa: BLE001 - deliberately broad, we always want a fallback
-        logger.warning("Live price fetch failed for %s (%s). Falling back to mock data.", asset, exc)
-        return fetch_price_mock(asset)
+    return fetch_price_live(asset)
 
 
 # --------------------------------------------------------------------------
@@ -279,7 +295,7 @@ def check_watch(watch: dict, price: float) -> bool:
     crossed = (direction == "above" and price >= target) or (direction == "below" and price <= target)
 
     if crossed and not watch.get("triggered"):
-        sym = currency_symbol()
+        sym = currency_symbol(watch["asset"])
         msg = f"\U0001f514 ALERT: {watch['asset']} crossed {sym}{target:,.0f} — Current: {sym}{price:,.2f}"
         notify("PriceWatch Alert", msg)
         watch["triggered"] = True
@@ -313,7 +329,11 @@ def run_check(use_mock: bool = False) -> None:
 
         for w in watches:
             if w["asset"] == asset:
-                if check_watch(w, price):
+                was_triggered = w.get("triggered", False)
+                check_watch(w, price)
+                # Save on any flip, including the re-arm when the price moves
+                # back, or the next tick reloads the stale flag from disk.
+                if w.get("triggered", False) != was_triggered:
                     state_changed = True
 
     if state_changed:
@@ -379,7 +399,8 @@ def generate_report(asset: str | None = None) -> list[Path]:
         ax.plot(xs, ys, marker="o", markersize=3, linewidth=1.5, color="#2563eb")
         ax.set_title(f"{a} Price — Week {iso_week}, {iso_year}")
         ax.set_xlabel("Time")
-        ax.set_ylabel(f"Price ({CURRENCY.upper()})")
+        code = currency_code(a)
+        ax.set_ylabel(f"Price ({code.upper()})" if code else "Price")
         ax.grid(True, alpha=0.3)
         if min(xs) == max(xs):
             # All points share one timestamp (e.g. a burst of test data, or
@@ -467,7 +488,7 @@ def main() -> None:
 
     if args.asset and args.target is not None and args.direction:
         add_watch(args.asset, args.target, args.direction)
-        sym = currency_symbol()
+        sym = currency_symbol(args.asset)
         print(f"Registered watch: alert when {args.asset.upper()} goes {args.direction} {sym}{args.target:,.2f}")
 
     did_something = bool(args.asset)
